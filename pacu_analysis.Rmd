@@ -1,0 +1,365 @@
+Using R instead of Excel for analyzing recovery room data
+=========================================================
+
+In my spreadsheet modeling class this semester, I gave an assignment that involved doing some basic pivot tables and histograms for a dataset containing (fake) patient records from a post-anethesia care unit (PACU). It's the place you go after having surgery until you recover sufficiently to either go home (for outpatient surgery) and head back to your hospital room. 
+
+[pacu_analysis.zip from my github site](https://github.com/misken/hselab-tuts-files.git) contains the data, the assignment, and the R markdown file for this tutorial.
+
+You'll see that one of the questions involves having students reflect on why certain kinds of analytical tasks are difficult to do in Excel. I have them read [one of my previous posts on using R for a similar analysis task](http://www.hselab.org/content/getting-started-r-plyr-and-ggplot2-group-analysis).
+
+So, I thought it would be fun to do some of the things asked for in this Excel assignment but to use R instead. It is a very useful exercise and I think those somewhat new to R (especially coming from an Excel-centric world like a business school) will pick up some good tips and continue to add to their R knowledge base. 
+
+Some of the things that this exercise will touch on include:
+- reading a CSV file and controlling the data types as they come in to an R dataframe
+- converting Excel date/times to R datetimes (actually to POSIXct)
+- doing typical date time math
+- working with R factors, levels and some string parsing
+- using the plyr package for split-apply-combine analysis (aka "group by" analysis for SQL folks)
+- avoiding an evil gotcha involving POSIXlt vs POSIXct datetime classes when using plyr
+
+Read the data
+-------------
+
+```{r}
+pacu <- read.csv('pacu.csv')
+```
+
+We can check out the structure of this dataframe with the `str()` function. Do a `help(str)` to learn more
+about this handy function.
+
+```{r}
+str(pacu)
+```
+
+Unfortunately, some of our fields weren't interpreted as we'd like. For example, the date fields RecoveryIn and
+recovery out were interpreted as factors instead of data. Let's see if `read.csv()` has a hook for doing this.
+
+```{r}
+help(read.csv)
+```
+
+Hmm, looks like colClasses should do the trick. 
+
+```{r}
+pacu <- read.csv('pacu.csv',colClasses = c("integer","factor","factor","Date","Date","numeric","factor","factor","factor"))
+```
+
+Unfortunately, it butchers the dates.
+
+```{r}
+pacu[1:5,]
+
+```
+
+Working with dates and times
+----------------------------
+
+Let's read the dates as characters and then convert them using `as.Date` or `strptime` function.
+
+```{r}
+pacu <- read.csv('pacu.csv',colClasses = c("integer","factor","factor","character","character","numeric","numeric","numeric","factor"))
+```
+
+
+```{r}
+pacu[1:5,]
+
+```
+
+The Quick-R site has useful info on the date related functions. [http://www.statmethods.net/input/dates.html](http://www.statmethods.net/input/dates.html)
+
+Let's test `as.Date` and `strptime`.
+
+```{r}
+as.Date("6/3/2010 19:36",format="%m/%d/%Y %H:%M")
+strptime("6/3/2010 19:36","",format="%m/%d/%Y %H:%M")
+
+```
+
+Hmm, as.Date isn't displaying the time. A little Googling leads to [http://rfunction.com/archives/1912](http://rfunction.com/archives/1912) which confirms we need `strptime` if we want times. Now, we just need to transform the RecoveryIn and RecoveryOut columns using it.
+
+```{r}
+pacu$RecoveryIn <- strptime(pacu$RecoveryIn,"",format="%m/%d/%Y %H:%M")
+pacu$RecoveryOut <- strptime(pacu$RecoveryOut,"",format="%m/%d/%Y %H:%M")
+str(pacu)
+```
+
+[POSIXlt](http://stat.ethz.ch/R-manual/R-devel/library/base/html/DateTimeClasses.html) is a date-time class. Learn more from
+[Ripley, B. D. and Hornik, K. (2001) Date-time classes. R News, 1/2, 8-11. http://www.r-project.org/doc/Rnews/Rnews_2001-2.pdf](http://www.r-project.org/doc/Rnews/Rnews_2001-2.pdf).
+
+**WARNING**: After doing this I carried on and eventually started doing a bunch of analysis with plyr (group by stuff and do counts, sums, means, etc.) When trying to do a group by on two grouping fields I got a strange error. Googling led to the [following post in StackOverflow](http://stackoverflow.com/questions/14153092/meaning-of-ddply-error-names-attribute-9-must-be-the-same-length-as-the-vec/14162351#14162351). Hadley Wickham, the creator of plyr chimed in with `Use POSIXct dates in data.frames, not POSIXlt`. Ok, did that and the weird error went away. The SO post above has some details on the internals of this issue if you are interested. This post on [POSIXlt vs POSIXct also sheds light](http://stackoverflow.com/questions/10699511/difference-between-as-posixct-as-posixlt-and-strptime-for-converting-character-v):
+
+> First, there's two internal implementations of date/time: POSIXct, which stores seconds since UNIX epoch (+some other data), and 
+> POSIXlt, which stores a list of day, month, year, hour, minute, second, etc.
+> strptime is a function to directly convert character vectors (of a variety of formats) to POSIXlt format.
+> as.POSIXlt converts a variety of data types to POSIXlt. It tries to be intelligent and do the sensible thing - in the case of 
+> character, it acts as a wrapper to strptime. as.POSIXct converts a variety of data types to POSIXct. It also tries to be intelligent
+> and do the sensible thing - in the case of character, it runs strptime first, then does the conversion from POSIXlt to POSIXct.
+> It makes sense that strptime is faster, because strptime only handles character input whilst the others try to determine which
+> method to use from input type. It should also be a bit safer in that being handed unexpected data would just give an error, instead
+> of trying to do the intelligent thing that might not be what you want.    
+
+
+The fix is easy.
+
+```{r}
+pacu$RecoveryIn <- as.POSIXct(pacu$RecoveryIn)
+pacu$RecoveryOut <- as.POSIXct(pacu$RecoveryOut)
+
+```
+
+
+Let's add a new column called RecoveryMins and which is simply RecoveryOut-RecoveryIn. There is a `difftime` function that gives us some flexibility in specifying the units (much like DateDiff in the VBA world). However, the default output is a little strange (it's a "difftime" object) for those used to VBA.
+
+```{r}
+difftime(pacu[1,5],pacu[1,4],"",units="mins")
+```
+
+To just get a numeric value we can do the following:
+
+```{r}
+as.double(difftime(pacu[1,5],pacu[1,4],"",units="mins"))
+```
+
+Create the new RecoveryMin column:
+
+```{r}
+pacu$RecoveryMins <- as.double(difftime(pacu$RecoveryOut,pacu$RecoveryIn,"",units="mins"))
+head(pacu)
+
+```
+
+Another requirement in the Excel assignment was to create a few date related, derived, columns: month, day of month, and year. So, a little research reveals that extraction of "date parts" from POSIXlt and POSIXct objects involves using the `strftime` function and passing a format string. For example, to get the month of RecoveryIn from the first row in the pacu dataframe, we cand do this.
+
+```{r}
+strftime(pacu[1,4],"%Y")
+```
+
+Hmm, we get a character representation. There has to be a better way. There is. There's a nice little package called [lubridate](http://cran.r-project.org/web/packages/lubridate/lubridate.pdf) "that makes working with dates fun instead of frustrating".
+
+
+```{r}
+# install.packages("lubridate")
+```
+
+```{r}
+library(lubridate)
+```
+
+A introductory [blog post by one of the authors is a good place to start](http://www.r-statistics.com/2012/03/do-more-with-dates-and-times-in-r-with-lubridate-1-1-0/). Also, `help(lubridate)` is enlightening. 
+
+Look how easy it is to parse a date string that's in a certain format. A POSIXct date-time object is returned.
+
+```{r}
+somedatetime <- mdy_hm("6/3/2010 19:36")
+somedatetime
+```
+
+Lubridate has a bunch of easy to remember functions to break apart dates and times in ways that should be quite familiar to MS Office and VBA types.
+
+```{r}
+month(somedatetime)
+mday(somedatetime)
+year(somedatetime)
+```
+
+Now we can create new convenience columns to facilitate date related analyses.
+
+```{r}
+pacu$month <- month(pacu$RecoveryIn)
+pacu$day <- mday(pacu$RecoveryIn)
+pacu$year <- year(pacu$RecoveryIn)
+head(pacu)
+
+```
+
+Factor levels and strings
+-------------------------
+
+Let's also create a new numeric column called Acuity by grabbing the integer off of the end of the Severity values (e.g. "Acuity 1"). This will give us a chance to look at basic string manipulation in R. But first, a trip into the world of factors and levels...
+
+So, R has a `substr` function that lets you extract substrings from strings. To use it: `substr(x, start, stop)`. It seemed to me that the following should work to pull off the last character in the Severity field for the first row in the pacu dataframe.
+
+```{r}
+substr(pacu[1,2],nchar(pacu[1,2]),nchar(pacu[1,2]))
+
+```
+Huh?
+
+```{r}
+length(pacu[1,2])
+nchar(pacu[1,2])
+
+```
+
+But wait, I thought Severity had values like "Acuity 1"? It does, but those are simply levels of the factor (and Severity is a factor). How are factor values stored by R? Start by looking at the numeric conversion of Severity. 
+
+```{r}
+# Numeric version of Severity for first 100 rows in pacu
+as.numeric(pacu$Severity[1:100])
+
+```
+
+What are these integers? They are indices into the levels of the Severity factor. What are the levels?
+
+```{r}
+levels(pacu$Severity)
+class(levels(pacu$Severity))
+```
+
+The levels themselves are characters. Conveniently, they are also ordered correctly (1-5). We could grab the acuity number a few different ways.
+
+```{r}
+# Let's just test this with the first patient
+firstpat <- pacu[1,]
+
+acuity <- as.numeric(firstpat$Severity)
+acuity
+
+# If we didn't want to rely on them being ordered correctly, we could do some string-fu
+
+sev_string <- levels(firstpat$Severity)[acuity]
+acuity_alt <- substr(sev_string,nchar(sev_string),nchar(sev_string))
+acuity_alt
+
+# Be careful, acuity_alt is a character
+acuity_alt <- as.numeric(acuity_alt)
+acuity_alt
+```
+
+Now that we understand how to get the acuity value from the Severity factor, we can make a new column in our data frame.
+
+```{r}
+# Method 1
+pacu$acuity <- as.numeric(pacu$Severity)
+head(pacu)
+
+# Method 2
+pacu$acuity_str <- levels(pacu$Severity)[as.numeric(pacu$Severity)] # Temporary string version
+pacu$acuity_alt <- substr(pacu$acuity_str,nchar(pacu$acuity_str),nchar(pacu$acuity_str))
+pacu$acuity_str <- NULL # Get rid of the temporary string version
+
+```
+
+Using plyr for group by analysis
+--------------------------------
+
+Load the [plyr library](http://plyr.had.co.nz/) to make "group by" (split-apply-combine) analysis easy.
+
+Hadley Wickham (2011). The Split-Apply-Combine Strategy for Data Analysis. Journal of Statistical Software, 40(1), 1-29. [http://www.jstatsoft.org/v40/i01/](http://www.jstatsoft.org/v40/i01/).
+
+
+```{r}
+library(plyr)
+```
+
+Let's do some basic counts by patient type and acuity.
+
+```{r}
+pivot1 <- ddply(pacu,.(PatType),summarize,numcases = length(VisitNum))
+pivot1
+```
+
+```{r}
+pivot2 <- ddply(pacu,.(acuity),summarize,numcases = length(VisitNum))
+pivot2
+```
+
+```{r}
+pivot3 <- ddply(pacu,.(PatType,acuity),summarize,numcases = length(VisitNum))
+pivot3
+```
+
+Want to view it more like a 2-D Excel pivot table? This is a job for another useful Hadley Wickham package - [reshape2](http://cran.r-project.org/web/packages/reshape2/index.html). 
+
+> Reshape lets you flexibly restructure and aggregate data using just two functions: melt and cast.
+
+```{r}
+library(reshape2)
+
+```
+
+Here's a [good introductory tutorial on reshape2](http://www.seananderson.ca/2013/10/19/reshape.html). It covers the notion of wide and long data formats and using melt and cast to move between these two formats.
+
+Let's cast pivot3 so that acuity swings up from the rows and into the column headers. The "pivot table" will get wider.
+
+```{r}
+dcast(pivot3,PatType ~ acuity,value.var = "numcases")
+
+```
+
+Same idea applied to counting cases by hour of day and acuity...
+
+
+```{r}
+pivot4 <- ddply(pacu,.(acuity,Hour),summarize,numcases = length(VisitNum))
+pivot4
+dcast(pivot4,acuity ~ Hour,value.var = "numcases",fill=0)
+
+# Flip the axes
+pivot5 <- ddply(pacu,.(Hour,acuity),summarize,numcases = length(VisitNum))
+pivot5
+dcast(pivot5,Hour ~ acuity,value.var = "numcases",fill=0)
+```
+
+Histograms, box plots and percentiles of recovery time
+------------------------------------------------------
+
+Now let's look at some histograms of recovery time.
+
+```{r}
+library(ggplot2)
+```
+
+
+```{r}
+# Basic histogram for ScheduledDaysInAdvance. Each bin is 4 wide.
+ggplot(pacu, aes(x=RecoveryMins)) + geom_histogram(binwidth=20)
+```
+
+Hmm, that spike in the right tail raises some questions about the data. We'll ignore for now.
+
+While there are a number of ways to create histograms in Excel (Data Analysis Tool-Pak, FREQUENCY() array function, pivot table with grouped row field), it's a tedious pain to do them by some factor like acuity. In general, "small multiples" are no fun at all in Excel. In R, it's easy.
+
+```{r}
+# Histogram with frequencies
+ggplot(pacu, aes(x = RecoveryMins)) + facet_wrap(~Severity) + geom_histogram(aes(y = ..density..),binwidth = 10) + 
+  coord_cartesian(xlim = c(0, 500))
+
+```
+
+Box plots anyone?
+
+```{r}
+ggplot(pacu, aes(x = Severity, y = RecoveryMins)) + geom_boxplot()
+
+```
+
+```{r}
+ggplot(pacu, aes(x = Severity, y = RecoveryMins)) + geom_boxplot() + coord_cartesian(ylim = c(0, 750))
+
+```
+
+
+Similarly, percentiles by factor levels is hideous in Excel and easy in R.
+
+```{r}
+pivot6 <- ddply(pacu,.(PatType,acuity),summarize,p95 = quantile(RecoveryMins,0.95))
+dcast(pivot6,PatType ~ acuity,value.var = "p95")
+```
+
+Now, the rest of the assignment asks the student to construct an Excel based "dashboard" which combines various relevant visualizations of PACU statistics for the PACU manager. Alternatively, one could use a tool like [Tableau](http://www.tableausoftware.com/products/desktop) to create compelling data visualizations. Now, how might one use R to do something [like these dashboards](https://www.google.com/search?q=tableau+dashboard+examples&tbm=isch&tbo=u&source=univ&sa=X)? A task for another day. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+

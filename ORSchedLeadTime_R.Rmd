@@ -1,0 +1,268 @@
+## Analysis background ##
+
+We have a data file containing records corresponding to surgical cases. For each case we know some basic information about the patient's scheduled case including an urgency code, the date the case was scheduled, insurance status, surgical service, and the number of days prior to surgery in which the case was scheduled. In data model terms, the first 4 variables are dimensions and the last variable is a measure. In R, a dimension is called a *factor* and each unique value of a factor is called a *level*. Of course, we could certainly use things like SQL or Excel Pivot Tables to do very useful things with this data. However, here we will start to see how R can be used to do the same things as well as to do some things that are much more difficult using SQL or Excel.
+
+## Preliminaries ##
+
+I'm assuming you've got R installed. If not you can get it from the [R Project](http://www.r-project.org/) web page. If you've never used R before, you might want to spend some time learning the basics before tackling this tutorial. 
+
+Some good sites for learning R are:
+- [The R-Project](http://www.r-project.org/)
+- [Quick-R](http://www.statmethods.net/)
+- [Cookbook for R](http://www.cookbook-r.com/)
+
+Both [Stack Overflow](http://stackoverflow.com/questions/tagged/r) and [Cross Validated](http://stats.stackexchange.com/) are good places for Q & A related to R and statistics. Stack Overflow is a general place for programming related questions and Cross Validated focuses on statistical questions.
+
+Yes, R has a somewhat steep learning curve but the payoff is huge.
+
+While R comes with a basic command line environment, I highly recommend downloading [R Studio](http://www.rstudio.com/), a really great IDE for working with R. 
+
+Before doing anything, set the working directory via the Session menu (in R Studio) or at the command console with:
+```{r setwd, eval=FALSE}
+setwd("<workding directory with your data files and scrips and other stuff>")
+```
+ 
+Load libraries that we'll need.
+
+```{r libraries}
+library(plyr)      # A library for data summarization and transformation
+library(ggplot2)   # A library for plotting
+```
+ 
+To install a library not already installed (can't load something if it's not installed first):
+
+```{r packages, eval=FALSE}
+install.packages("plyr")
+``` 
+ 
+ 
+Both **plyr** and **ggplot2** are R libraries created by Hadley Wickham. He is a prolific developer
+of useful R packages, teaches at Rice University, and is the Chief Scientist at 
+R Studio. His website is: http://had.co.nz/.
+
+The **plyr** library implements what is known as the Split-Apply-Combine model for data summarization.
+A great little paper is available from the plyr website at http://plyr.had.co.nz/.
+
+The **ggplot2** library is a plotting system for R. It's based on something called the "grammar of graphics".
+The main website is http://ggplot2.org/. The best way to really learn how to use it is the **ggplot2** book
+which is referenced at the main site. In addition, there is a great web based cookbook for doing
+graphs with **ggplot2** at http://www.cookbook-r.com/Graphs/.
+
+You can always get help on any R command or function by typing **help(<whatever>)** at the command prompt (or using the help facility in R Studio or a little Googling.)
+
+## Load data ##
+
+Read in the csv file to a *data frame*.
+```{r readcsv}
+sched_df <- read.csv("data/SchedDaysAdv.csv", stringsAsFactors = TRUE)  # String ARE factors by default, just being explicit
+
+head(sched_df)  # See the start of the data frame
+tail(sched_df)  # See the end of the data frame
+```
+
+You can also browse the data frame with clicking on the **sched_df** object in the Data section of 
+the Workspace browser.
+
+## Analysis ##
+
+We will start with basic summary stats, move on to more complex calculations and finish up with some basic graphing.
+ 
+### Basic summary stats ###
+
+Let's start with some basic summary statistics regarding lead time by various dimensions, or in R terms, factors.
+
+Since ScheduledDaysInAdvance is the only measure, we'll do a bunch  of descriptive statistics on it.
+
+```{r descstats1}
+## Use summary() to get the 5 number summary
+summary(sched_df$ScheduledDaysInAdvance)
+
+## How about some percentiles
+p05_leadtime <- quantile(sched_df$ScheduledDaysInAdvance,0.05)
+p05_leadtime
+p95_leadtime <- quantile(sched_df$ScheduledDaysInAdvance,0.95)
+p95_leadtime
+```
+
+### Histogram and box plot ###
+
+Graphing and charting in R is a huge topic. A few of the more popular graphics libraries include **lattice** and **ggplot2**.  All of the plots in this tutorial are done with **ggplot2**. The **qplot** command is for "quick plots" that don't require much understanding of the underlying "grammar of graphics". It's a good place to start in learning **ggplot2** but you'll want to learn how to access the power and flexibility of this package available through the **ggplot** and related commands. While the statements look a little daunting at first, once you get the hang of **ggplot2**, it's no big deal.
+
+I "borrowed" the following histogram examples from the Cookbook on R chapter on [Plotting distributions](http://www.cookbook-r.com/Graphs/Plotting_distributions_%28ggplot2%29/).
+
+```{r overallhistos}
+# Basic histogram for ScheduledDaysInAdvance. Each bin is 4 wide.
+# These both do the same thing:
+qplot(sched_df$ScheduledDaysInAdvance, binwidth=4)
+ggplot(sched_df, aes(x=ScheduledDaysInAdvance)) + geom_histogram(binwidth=4)
+
+# Draw with black outline, white fill
+ggplot(sched_df, aes(x=ScheduledDaysInAdvance)) + geom_histogram(binwidth=4, colour="black", fill="white")
+
+# Density curve
+ggplot(sched_df, aes(x=ScheduledDaysInAdvance)) + geom_density()
+
+# Histogram overlaid with kernel density curve
+ggplot(sched_df, aes(x=ScheduledDaysInAdvance)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   binwidth=4,
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")  # Overlay with transparent density plot
+
+```
+Near the end of the tutorial we'll revisit these and do them by various groupings.
+
+For box plots, let's do a little grouping as well.
+
+```{r boxplots}
+# A basic box plot by InsuranceStatus
+ggplot(sched_df, aes(x=InsuranceStatus, y=ScheduledDaysInAdvance)) + geom_boxplot()
+
+# A basic box with the InsuranceStatus colored
+ggplot(sched_df, aes(x=InsuranceStatus, y=ScheduledDaysInAdvance, fill=InsuranceStatus)) + geom_boxplot()
+
+# The above adds a redundant legend. With the legend removed:
+ggplot(sched_df, aes(x=InsuranceStatus, y=ScheduledDaysInAdvance, fill=InsuranceStatus)) + geom_boxplot() +
+    guides(fill=FALSE)
+
+# With flipped axes and a different grouping field
+ggplot(sched_df, aes(x=Urgency, y=ScheduledDaysInAdvance, fill=Urgency)) + geom_boxplot() + 
+    guides(fill=FALSE) + coord_flip()
+```
+
+
+
+### Group-wise summaries ###
+Everything we've done so far (except for the box plots) has not considered any of the dimensions (factors, group by fields, etc.).
+
+R has a family of functions called the *apply* family. They are designed when you want to apply some sort of function(either a built in function or a udf) repeatedly to some subset of data. There a bunch of apply functions and it can be difficult to remember the nuances of each. Good introductory overviews include:
+
+ - http://nsaunders.wordpress.com/2010/08/20/a-brief-introduction-to-apply-in-r/
+ - http://www.r-bloggers.com/say-it-in-r-with-by-apply-and-friends/
+
+Let's compute the counts, mean and standard deviation of lead time by urgency class. We'll use the
+**tapply** function. According to **help(tapply)**:
+
+    Apply a function to each cell of a ragged array, that is to each (non-empty) group of values given by a unique     combination of the levels of certain factors.
+
+The "ragged array" refers to the fact that the number of rows for each level of some factor might be different. In this example, there are likely a different number of cases for each value of the urgency column (a factor).
+
+```{r}
+## Count(ScheduledDaysInAdvance) by Urgency
+tapply(sched_df$ScheduledDaysInAdvance,sched_df$Urgency,length)
+
+## Mean(ScheduledDaysInAdvance) by Urgency
+tapply(sched_df$ScheduledDaysInAdvance,sched_df$Urgency,mean)
+
+## Mean(ScheduledDaysInAdvance) by Urgency and store result in an array
+meansbyurg<-tapply(sched_df$ScheduledDaysInAdvance,sched_df$Urgency,mean)
+
+## Std(ScheduledDaysInAdvance) by Urgency
+tapply(sched_df$ScheduledDaysInAdvance,sched_df$Urgency,sd)
+```
+
+What if you want to compute means after grouping by two factors? Well, **tapply** will take a list of factors as the INDEX argument.
+
+```{r}
+tapply(sched_df$ScheduledDaysInAdvance,list(sched_df$Urgency,sched_df$InsuranceStatus),mean)
+```
+
+
+The results of **tapply** are generally arrays. What if we want a data frame with the factors appearing as columns?
+
+```{r agg1}
+aggregate(sched_df$ScheduledDaysInAdvance,list(sched_df$Urgency,sched_df$InsuranceStatus),mean)
+```
+
+Aggregate returns generic column names for the resulting data frame. We can make our own.
+
+```{r agg1b}
+meansbyurgstatus <- aggregate(sched_df$ScheduledDaysInAdvance,list(sched_df$Urgency,sched_df$InsuranceStatus),mean)
+names(meansbyurgstatus) <- c("Urgency","MilStatus","MeanLeadTime")
+```
+
+Check out http://nsaunders.wordpress.com/2010/08/20/a-brief-introduction-to-apply-in-r/ for more on these and related functions in the apply family.
+
+### Using **plyr** for group wise analysis ###
+
+While **tapply** and friends are great, they can be a bit confusing. **plyr** was designed to make it easier to do this type of analysis. Check out the highlights at http://plyr.had.co.nz/. One way that **plyr** is easier to use than **tapply** and friends is that it uses a common naming convention that specifies the type of input data structure and the type of output data structure. So, if have a data frame and you want a data frame as output, you use **ddply**. If you wanted an array as output you'd use **daply**. Again, check out the [article on Split-Apply-Combine](http://www.jstatsoft.org/v40/i01) that is the basis for **plyr** to get all the details.
+
+The **summarise** function (in **plyr**) summarizes a field over entire data set (i.e. no grouping fields). Result of following is 1 x 6.
+
+```{r summarize}
+summarise(sched_df, mean_leadtime=mean(ScheduledDaysInAdvance),
+  sd_leadtime=sd(ScheduledDaysInAdvance),
+  min_leadtime = min(ScheduledDaysInAdvance),
+  p05_leadtime = quantile(ScheduledDaysInAdvance,0.05),
+  p95_leadtime = quantile(ScheduledDaysInAdvance,0.95),
+  max_leadtime = max(ScheduledDaysInAdvance))
+```
+
+The above isn't super useful but shows how to do a basic summary of a field in a data frame. The **summarise()** function will get used in other **plyr** commands shortly. Note also that no assignment is done and that the command merely outputs the results to the console. To store the results in data frame, we do this:
+
+```{r}
+overall_stats <- summarise(sched_df, mean_leadtime=mean(ScheduledDaysInAdvance),
+  sd_leadtime=sd(ScheduledDaysInAdvance),
+  min_leadtime = min(ScheduledDaysInAdvance),
+  p05_leadtime = quantile(ScheduledDaysInAdvance,0.05),
+  p95_leadtime = quantile(ScheduledDaysInAdvance,0.95),
+  max_leadtime = max(ScheduledDaysInAdvance))
+```
+```{r}
+## Count(ScheduledDaysInAdvance) by Urgency
+ddply(sched_df,"Urgency",summarise,numcases=length(ScheduledDaysInAdvance))
+
+## A variant of above but using the special "dot" function so that the splitting variables can
+## be referenced directly by name without quotes.
+ddply(sched_df,.(Urgency),summarise,numcases=length(ScheduledDaysInAdvance))
+
+## Mean(ScheduledDaysInAdvance) by Urgency
+ddply(sched_df,.(Urgency),summarise,mean_leadtime=mean(ScheduledDaysInAdvance))
+
+## Mean(ScheduledDaysInAdvance) by Urgency and store result in an array
+meansbyurg<-ddply(sched_df,.(Urgency),summarise,mean_leadtime=mean(ScheduledDaysInAdvance))
+
+## Std(ScheduledDaysInAdvance) by Urgency
+ddply(sched_df,.(Urgency),summarise,sd_leadtime=sd(ScheduledDaysInAdvance))
+
+## Now let's do mean lead time by Urgency and InsuranceStatus
+ddply(sched_df,.(Urgency,InsuranceStatus),summarise,mean_leadtime=mean(ScheduledDaysInAdvance))
+```
+
+This is just a very, very brief peek into to **plyr** and data summarization in R. Way more complex stuff can be done. In fact, why don't we do something that is not easy to do using SQL or Excel Pivot Tables or Tableau. Let's compute the 95th percentile of lead time by service and insurance status.
+
+```{r pctile}
+ddply(sched_df,.(Service,InsuranceStatus),summarise,p95_leadtime=quantile(ScheduledDaysInAdvance,0.95))
+
+## Now let's do it by Urgency
+ddply(sched_df,.(Urgency),summarise,p95_leadtime=quantile(ScheduledDaysInAdvance,0.95))
+
+## or by service
+ddply(sched_df,.(Service),summarise,p95_leadtime=quantile(ScheduledDaysInAdvance,0.95))
+```
+
+Even within R, there are several other ways of doing this type of analysis. For example, the [sqldef](http://code.google.com/p/sqldf/) package lets you execute SQL statements in R. Other packages for doing group by type analysis include [data.table](http://datatable.r-forge.r-project.org/) and [doBy](http://people.math.aau.dk/~sorenh/software/doBy/).
+
+### Histograms revisited ###
+Let's just see how easy it is do a matrix of histograms - something that is no fun at all in Excel.
+
+
+```{r hist1}
+# Histogram with counts
+qplot(ScheduledDaysInAdvance, data = sched_df, binwidth=4) + facet_wrap(~ Service)
+
+# Histogram with frequencies
+ggplot(sched_df,aes(x=ScheduledDaysInAdvance)) + facet_wrap(~ Service) +
+   geom_histogram(aes(y=..density..), binwidth=4)
+```
+
+
+## About this web page ##
+
+This page was created as an [R Markdown](http://www.rstudio.com/ide/docs/r_markdown) document using [R Studio](http://www.rstudio.com/) and turned into HTML using **knitr** (through R Studio). You [can download a zip file](https://sharepoint.improvementpath.com/IPS%20Documents/ORSchedLeadTime_R.zip) containing the data file and this R Markdown document. R Studio is an awesome IDE for doing work in R and keeps getting better in terms of its support for "reproducible analysis" through integration of tools like **Markdown** and **knitr**. 
+
+## R code listing ##
+Here's just the R code so you can copy and paste it as you wish.
+```{r all-code, ref.label=all_labels(), echo=TRUE, eval=FALSE}
+```
+
