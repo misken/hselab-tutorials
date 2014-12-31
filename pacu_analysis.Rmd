@@ -3,9 +3,9 @@ Using R instead of Excel for analyzing recovery room data
 
 In my spreadsheet modeling class this semester, I gave an assignment that involved doing some basic pivot tables and histograms for a dataset containing (fake) patient records from a post-anethesia care unit (PACU). It's the place you go after having surgery until you recover sufficiently to either go home (for outpatient surgery) and head back to your hospital room. 
 
-[pacu_analysis.zip from my github site](https://github.com/misken/hselab-tuts-files.git) contains the data, the assignment, and the R markdown file for this tutorial.
+You can find the data, the assignment (PACU_analysis_problem.pdf) and the R Markdown file in my [hselab-tutorials](https://github.com/misken/hselab-tutorials) github repo. Clone or download a zip.
 
-You'll see that one of the questions involves having students reflect on why certain kinds of analytical tasks are difficult to do in Excel. I have them read [one of my previous posts on using R for a similar analysis task](http://www.hselab.org/content/getting-started-r-plyr-and-ggplot2-group-analysis).
+You'll see that one of the questions involves having students reflect on why certain kinds of analytical tasks are difficult to do in Excel. I have them read [one of my previous posts on using R for a similar analysis task](http://www.hselab.org/getting-started-r-plyr-and-ggplot2-group-analysis.html).
 
 So, I thought it would be fun to do some of the things asked for in this Excel assignment but to use R instead. It is a very useful exercise and I think those somewhat new to R (especially coming from an Excel-centric world like a business school) will pick up some good tips and continue to add to their R knowledge base. 
 
@@ -21,7 +21,7 @@ Read the data
 -------------
 
 ```{r}
-pacu <- read.csv('pacu.csv')
+pacu <- read.csv('data/pacu.csv')
 ```
 
 We can check out the structure of this dataframe with the `str()` function. Do a `help(str)` to learn more
