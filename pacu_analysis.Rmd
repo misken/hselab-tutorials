@@ -41,7 +41,7 @@ help(read.csv)
 Hmm, looks like colClasses should do the trick. 
 
 ```{r}
-pacu <- read.csv('pacu.csv',colClasses = c("integer","factor","factor","Date","Date","numeric","factor","factor","factor"))
+pacu <- read.csv('data/pacu.csv',colClasses = c("integer","factor","factor","Date","Date","numeric","factor","factor","factor"))
 ```
 
 Unfortunately, it butchers the dates.
@@ -57,7 +57,7 @@ Working with dates and times
 Let's read the dates as characters and then convert them using `as.Date` or `strptime` function.
 
 ```{r}
-pacu <- read.csv('pacu.csv',colClasses = c("integer","factor","factor","character","character","numeric","numeric","numeric","factor"))
+pacu <- read.csv('data/pacu.csv',colClasses = c("integer","factor","factor","character","character","numeric","numeric","numeric","factor"))
 ```
 
 
@@ -180,13 +180,13 @@ Let's also create a new numeric column called Acuity by grabbing the integer off
 
 So, R has a `substr` function that lets you extract substrings from strings. To use it: `substr(x, start, stop)`. It seemed to me that the following should work to pull off the last character in the Severity field for the first row in the pacu dataframe.
 
-```{r}
+```{r error=TRUE}
 substr(pacu[1,2],nchar(pacu[1,2]),nchar(pacu[1,2]))
 
 ```
 Huh?
 
-```{r}
+```{r error=TRUE}
 length(pacu[1,2])
 nchar(pacu[1,2])
 

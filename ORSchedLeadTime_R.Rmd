@@ -259,10 +259,7 @@ ggplot(sched_df,aes(x=ScheduledDaysInAdvance)) + facet_wrap(~ Service) +
 
 ## About this web page ##
 
-This page was created as an [R Markdown](http://www.rstudio.com/ide/docs/r_markdown) document using [R Studio](http://www.rstudio.com/) and turned into HTML using **knitr** (through R Studio). You [can download a zip file](https://sharepoint.improvementpath.com/IPS%20Documents/ORSchedLeadTime_R.zip) containing the data file and this R Markdown document. R Studio is an awesome IDE for doing work in R and keeps getting better in terms of its support for "reproducible analysis" through integration of tools like **Markdown** and **knitr**. 
+This page was created as an [R Markdown](http://www.rstudio.com/ide/docs/r_markdown) document using [R Studio](http://www.rstudio.com/) and turned into HTML using **knitr** (through R Studio). You can find the data and the R Markdown file in my [hselab-tutorials](https://github.com/misken/hselab-tutorials) github repo. Clone or download a zip. R Studio is an awesome IDE for doing work in R and keeps getting better in terms of its support for "reproducible analysis" through integration of tools like **Markdown** and **knitr**. 
 
-## R code listing ##
-Here's just the R code so you can copy and paste it as you wish.
-```{r all-code, ref.label=all_labels(), echo=TRUE, eval=FALSE}
-```
+
 
