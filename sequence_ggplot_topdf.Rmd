@@ -1,0 +1,60 @@
+Create sequence of ggplots and send to pdf
+========================================================
+
+Analysis background
+--------------------
+
+See my previously posted tutorial [Getting started with R, with plyr and ggplot2, for group by analysis](http://hselab.org/getting-started-R-group-by.html). At the end of that tutorial we did some facet plots to show a bunch of histograms. What if we wanted to do a sequence of plots instead and save each of them to separate PDFs?
+
+One approach
+Let's get ggplot2 loaded…
+
+```{r}
+library(ggplot2)
+```
+and the data file read in.
+
+```{r}
+sched_df <- read.csv("data/SchedDaysAdv.csv")
+```
+
+
+Here's the original facet plot of histograms of schedule lead time by service.
+
+```{r}
+# Histogram with frequencies
+ggplot(sched_df, aes(x = ScheduledDaysInAdvance)) + facet_wrap(~Service) + geom_histogram(aes(y = ..density..), 
+    binwidth = 4)
+```
+
+We want a sequence of plots and to save each to its own PDF. Some Googling and StackOverflowing led me to the following approach using a custom function and lapply() for the “looping”.
+
+```{r}
+doPlot = function(svc_name) {
+    # Just get the records for this service
+    temp_df = subset(sched_df, Service == svc_name)
+
+    # Create the plot object
+    ggobj = ggplot(temp_df, aes(x = ScheduledDaysInAdvance)) + geom_histogram(aes(y = ..density..), 
+        binwidth = 4)
+
+    # Add some titles and axis labels
+    ggobj = ggobj + ggtitle(svc_name) + xlab("Scheduled Days in Advance") + 
+        ylab("Frequency")
+
+    # Need to use print() to actually produce the plot
+    print(ggobj)
+
+    # Save to PDF
+    ggsave(sprintf("%s.pdf", svc_name))
+}
+```
+
+
+Now we can use lapply() to apply our function to a list of unique service names. We can get those unique names with the unique() function. Done.
+
+```{r}
+lapply(unique(sched_df$Service), doPlot)
+```
+
+
